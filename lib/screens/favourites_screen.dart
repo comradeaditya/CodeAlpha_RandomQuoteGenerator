@@ -27,6 +27,22 @@ class _FavouritesScreenState extends State<FavouritesScreen> {
   Future<void> _removeFavourite(Quote quote) async {
     await _favouritesService.removeFavourite(quote);
     _loadFavourites();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Quote removed from favourites!',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF0F3460),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -116,7 +132,7 @@ class _FavouritesScreenState extends State<FavouritesScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '— ${quote.author}',
+                            '- ${quote.author}',
                             style: const TextStyle(
                               color: Color(0xFFE94560),
                               fontSize: 14,

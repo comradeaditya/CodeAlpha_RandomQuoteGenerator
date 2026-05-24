@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/quote_model.dart';
 import '../services/quote_service.dart';
 import '../services/favourites_service.dart';
 import 'favourites_screen.dart';
-import 'package:flutter/services.dart';
 
 class QuoteScreen extends StatefulWidget {
   const QuoteScreen({super.key});
@@ -20,6 +20,7 @@ class _QuoteScreenState extends State<QuoteScreen>
   Quote? _currentQuote;
   bool _isLoading = false;
   bool _isFavourite = false;
+  int _favouriteCount = 0;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -31,9 +32,13 @@ class _QuoteScreenState extends State<QuoteScreen>
       vsync: this,
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeIn,
+      ),
     );
     _fetchQuote();
+    _loadFavouriteCount();
   }
 
   @override
@@ -60,6 +65,11 @@ class _QuoteScreenState extends State<QuoteScreen>
     _animationController.forward();
   }
 
+  Future<void> _loadFavouriteCount() async {
+    final favourites = await _favouritesService.getFavourites();
+    setState(() => _favouriteCount = favourites.length);
+  }
+
   Future<void> _toggleFavourite() async {
     if (_currentQuote == null) return;
     if (_isFavourite) {
@@ -68,19 +78,24 @@ class _QuoteScreenState extends State<QuoteScreen>
       await _favouritesService.addFavourite(_currentQuote!);
     }
     setState(() => _isFavourite = !_isFavourite);
+    _loadFavouriteCount();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isFavourite ? 'Added to favourites!' : 'Removed from favourites!',
-          style: const TextStyle(color: Colors.white),
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isFavourite ? 'Added to favourites!' : 'Removed from favourites!',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF0F3460),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-        backgroundColor: const Color(0xFF0F3460),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+      );
+    }
   }
 
   void _copyToClipboard() {
@@ -99,7 +114,9 @@ class _QuoteScreenState extends State<QuoteScreen>
         backgroundColor: const Color(0xFF0F3460),
         duration: const Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
@@ -130,179 +147,235 @@ class _QuoteScreenState extends State<QuoteScreen>
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.favorite, color: Color(0xFFE94560)),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FavouritesScreen(),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.favorite, color: Color(0xFFE94560)),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FavouritesScreen(),
+                    ),
+                  );
+                  _loadFavouriteCount();
+                },
+              ),
+              if (_favouriteCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '$_favouriteCount',
+                      style: const TextStyle(
+                        color: Color(0xFFE94560),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Quote Card
-            _isLoading
-                ? const CircularProgressIndicator(color: Color(0xFFE94560))
-                : FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(30),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF16213E), Color(0xFF0F3460)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity! < -300 ||
+              details.primaryVelocity! > 300) {
+            if (!_isLoading) _fetchQuote();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Quote Card
+              _isLoading
+                  ? const CircularProgressIndicator(
+                      color: Color(0xFFE94560),
+                    )
+                  : FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(30),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              Color(0xFF16213E),
+                              Color(0xFF0F3460),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFE94560)
+                                  .withValues(alpha: 0.2),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
                         ),
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFE94560,
-                            ).withValues(alpha: 0.2),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.format_quote,
-                            color: Color(0xFFE94560),
-                            size: 40,
-                          ),
-                          const SizedBox(height: 20),
-                          Text(
-                            _currentQuote?.text ?? '',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontStyle: FontStyle.italic,
-                              height: 1.6,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            width: 50,
-                            height: 2,
-                            color: const Color(0xFFE94560),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            '— ${_currentQuote?.author ?? ''}',
-                            style: const TextStyle(
+                        child: Column(
+                          children: [
+                            const Icon(
+                              Icons.format_quote,
                               color: Color(0xFFE94560),
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              size: 40,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 20),
+                            Text(
+                              _currentQuote?.text ?? '',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontStyle: FontStyle.italic,
+                                height: 1.6,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 24),
+                            Container(
+                              width: 50,
+                              height: 2,
+                              color: const Color(0xFFE94560),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              '— ${_currentQuote?.author ?? ''}',
+                              style: const TextStyle(
+                                color: Color(0xFFE94560),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-            const SizedBox(height: 30),
+              const SizedBox(height: 12),
 
-            // Heart + Share + Copy Row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Favourite Button
-                GestureDetector(
-                  onTap: _toggleFavourite,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: _isFavourite
-                          ? const Color(0xFFE94560).withValues(alpha: 0.2)
-                          : const Color(0xFF16213E),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFFE94560),
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(
-                      _isFavourite ? Icons.favorite : Icons.favorite_border,
-                      color: const Color(0xFFE94560),
-                      size: 28,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                // Share Button
-                GestureDetector(
-                  onTap: _shareQuote,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF16213E),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white24, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.share,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                // Copy Button
-                GestureDetector(
-                  onTap: _copyToClipboard,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF16213E),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white24, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.copy,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 30),
-
-            // New Quote Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _fetchQuote,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE94560),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 8,
-                  shadowColor: const Color(0xFFE94560).withValues(alpha: 0.4),
-                ),
-                child: const Text(
-                  'New Quote',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              const Text(
+                'Swipe left or right for new quote',
+                style: TextStyle(
+                  color: Colors.white24,
+                  fontSize: 12,
                 ),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 20),
+
+              // Heart + Share + Copy Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: _toggleFavourite,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _isFavourite
+                            ? const Color(0xFFE94560).withValues(alpha: 0.2)
+                            : const Color(0xFF16213E),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFE94560),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        _isFavourite
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: const Color(0xFFE94560),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: _shareQuote,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF16213E),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white24,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.share,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                  GestureDetector(
+                    onTap: _copyToClipboard,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF16213E),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white24,
+                          width: 2,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.copy,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 30),
+
+              // New Quote Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _fetchQuote,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE94560),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 8,
+                    shadowColor:
+                        const Color(0xFFE94560).withValues(alpha: 0.4),
+                  ),
+                  child: const Text(
+                    'New Quote',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
