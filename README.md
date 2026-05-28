@@ -58,7 +58,7 @@ Kept it clean with a **Service-based architecture**:
 ## Notes
 
 - Portrait mode only, optimized for mobile
-- API calls wrapped in try-catch block — if ZenQuotes API is unavailable or device has no internet, app gracefully falls back to a hardcoded quote instead of crashing
+- API calls wrapped in try-catch block - if ZenQuotes API is unavailable or device has no internet, app gracefully falls back to a hardcoded quote instead of crashing
 - Fallback quote: "The only way to do great work is to love what you do." by Steve Jobs
 - mounted checks used before all async context operations to prevent setState calls on unmounted widgets
 - withValues(alpha:) used throughout instead of deprecated withOpacity()
